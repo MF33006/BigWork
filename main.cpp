@@ -2,10 +2,11 @@
 #include<stdio.h>
 #include<time.h>
 #include<math.h>
+#include"tools.h"
 //开发日志
 //1.构建初始界面
 //2.构建方块数组
-//3.加载透明的方块图片..未实现
+//3.加载透明的方块图片
 //4.实现方块的移动
 #define WIN_WIDTH  485
 #define WIN_HEIGHT 917
@@ -17,18 +18,22 @@
 
 IMAGE imgBg;//背景图片
 IMAGE imgBlocks[7];//每个方块的图片
+int clickCount; //表示相邻位置的单击次数，第2次单机才会交换
+int posX1, posY1; //记录第1次单击的方块位置
+int posX2, posY2; //记录第2次单击的方块位置
+bool isMoving;//记录当前是否在移动
+bool isSwap;//记录当前是否在交换方块
 
 //定义方块的结构体类型
 struct Blocks {
 	int type=0;//0表示空白
 	int x, y;
 	int row, col;
+	int match;//匹配次数
 };
 
 struct Blocks map[ROWS+2][COLS+2];
-int clickCount = 0; //表示相邻位置的单击次数，第2次单机才会交换
-int posX1, posY1; //记录第1次单击的方块位置
-int posX2, posY2; //记录第2次单击的方块位置
+
 
 void init()
 {
@@ -43,6 +48,10 @@ void init()
 	loadimage(&imgBlocks[5], _T("res\\6.png"), BLOCK_SIZE, BLOCK_SIZE, true);
 	loadimage(&imgBlocks[6], _T("res\\7.png"), BLOCK_SIZE, BLOCK_SIZE, true);
 
+	clickCount = 0; //初始化点击次数为0
+	isMoving = false; //初始化移动标志为false
+	isSwap = false; //初始化交换标志为false
+
 	//配置随机数种子
 	srand(time(NULL));
 	//初始化方块数组，注意由于初始化的时候ROW+2，COL+2，所以实际的方块数组是从1开始的（1~8）
@@ -54,6 +63,7 @@ void init()
 			map[i][j].col = j;
 			map[i][j].x = OFFSET_X + (i - 1) * (BLOCK_SIZE + 5);
 			map[i][j].y = OFFSET_Y + (j - 1) * (BLOCK_SIZE + 5);
+			map[i][j].match = 0;
 
 		}
 	}
@@ -68,7 +78,7 @@ void updateWindow()
 		for (int j = 1; j <= COLS; j++) {
 			if (map[i][j].type) {
 				IMAGE* img = &imgBlocks[map[i][j].type - 1];
-				putimage(map[i][j].x, map[i][j].y, img);//将方块图片绘制到对应位置
+				putimagePNG(map[i][j].x, map[i][j].y, img);//将方块图片绘制到对应位置
 			}
 		}
 	}
@@ -116,6 +126,7 @@ void userClick()
 			if (abs(posX2 - posX1) + abs(posY2 - posY1) ==1) {
 				exchange(posY1, posX1, posY2, posX2);
 				clickCount= 0;
+				isSwap = true; //设置交换标志
 				//播放音效。。。
 			}
 			else {
@@ -127,30 +138,69 @@ void userClick()
 	}
 }
 
+void check()
+{
+	for (int i = 1; i <= ROWS; i++) {
+		for (int j = 1; j <= COLS; j++) {
+			if (map[i][j].type == map[i + 1][j].type &&
+				map[i][j].type == map[i - 1][j].type) {
+				map[i][j].match = 1;
+				map[i+1][j].match = 1;
+				map[i-1][j].match = 1;
+			}
+			if (map[i][j].type == map[i][j + 1].type &&
+				map[i][j].type == map[i][j - 1].type)
+			{
+				map[i][j].match = 1;
+				map[i][j+1].match = 1;
+				map[i][j-1].match = 1;
+			}
+		}
+	}
+}
+
 void move() {
 	for (int i = 1; i <= ROWS; i++) {
 		for (int j = 1; j <= COLS; j++) {
 			Blocks* p = &map[i][j];
+			int dx ;
+			int dy ;
 
-			p->x;
-			p->y;
-			// 正确计算目标位置：行索引 i → y，列索引 j → x
-			int targetX = OFFSET_X + (j - 1) * (BLOCK_SIZE + 5);
-			int targetY = OFFSET_Y + (i - 1) * (BLOCK_SIZE + 5);
-			int dx = p->x - targetX;
-			int dy = p->y - targetY;
+			//优化，加快交换速度
+			for (int k = 0; k < 4; k++) {
+				int targetX = OFFSET_X + (p->col - 1) * (BLOCK_SIZE + 5);
+				int targetY = OFFSET_Y + (p->row - 1) * (BLOCK_SIZE + 5);
+				dx = p->x - targetX;
+				dy = p->y - targetY;
 
-			if (dx) p->x -= dx / abs(dx); //向左或向右移动
-			if (dy) p->y -= dy / abs(dy); //向上或向下移动
-		
+				if (dx) p->x -= dx / abs(dx); //向左或向右移动
+				if (dy) p->y -= dy / abs(dy); //向上或向下移动
+			}
+
+			if (dx || dy) isMoving = true; //如果有移动，设置移动标志
 		}
 	}
 }
 
 
 void Huanyuan()
-{
+{ 
+	//发生移动之后才决定是否还原方块
+	int count = 0;
+	for (int i = 1; i <= ROWS; i++) {
+		for (int j = 1; j <= COLS; j++) {
+			count += map[i][j].match;
+		}
+	}
 
+	if (isSwap &&  !isMoving) {
+		//如果没有匹配三个以上的方块，则还原
+		if (1) {
+			exchange(posY1, posX1, posY2, posX2);
+		}
+		isSwap = false; //重置交换标志
+	}
+		
 }
 
 int main()
@@ -162,8 +212,9 @@ int main()
 
 	while (1) {
 		userClick();//处理用户的点击操作，将方块的数据交换了
+		check();//检查匹配次数
 	    move(); //处理方块的移动
-		//Huanyuan();//还原方块
+		Huanyuan();//还原方块
 		updateWindow(); //更新画面
 
 		Sleep(10);//帧等待，后续可优化.循环中不停的绘制，所以导致画面闪烁，需要加帧缓冲
